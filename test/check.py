@@ -45,6 +45,22 @@ import gpu
 print("renderer:", gpu.platform.renderer_get())
 """
 
+# partkit, as the subagent template uses it: a part placed away from the origin exports
+# at the origin, and the scene is left as it was.
+PARTKIT = f"""
+import bpy, mathutils, partkit
+bpy.ops.scene.new(type="EMPTY")
+partkit.new_part("CheckPart", location=(5, 0, 0))
+bpy.ops.mesh.primitive_cube_add(size=1, location=(5, 0, 0.5))
+partkit.add(bpy.context.view_layer.objects.active, "CheckPart")
+path = partkit.export("CheckPart", "{WORK}/parts")
+root_kept = tuple(bpy.data.objects["CheckPart"].location) == (5, 0, 0)
+bpy.ops.scene.new(type="EMPTY")
+bpy.ops.import_scene.gltf(filepath=path)
+xs = [(o.matrix_world @ mathutils.Vector(c)).x for o in bpy.context.scene.objects if o.type == "MESH" for c in o.bound_box]
+print("partkit:", root_kept, round(min(xs), 3), round(max(xs), 3))
+"""
+
 WINDOWS = "import bpy; print('windows:', len(bpy.context.window_manager.windows))"
 
 # For run.sh's VNC input check: the main window's 3D view orientation.
@@ -107,6 +123,12 @@ async def main() -> None:
             res = await s.call_tool("execute_blender_code", {"code": WINDOWS})
             text = res.content[0].text if res.content else ""
             check("windows: 1\\n" in text, "a render opens no window over the scene")
+
+            res = await s.call_tool("execute_blender_code", {"code": PARTKIT})
+            text = res.content[0].text if res.content else ""
+            check("partkit: True -0.5 0.5" in text, "partkit exports a part at the origin, scene untouched")
+            if "partkit: True -0.5 0.5" not in text:
+                print("       " + text[:600])
 
             res = await s.call_tool("get_screenshot_of_window_as_image", {})
             imgs = [c for c in res.content if c.type == "image"]

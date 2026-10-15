@@ -135,6 +135,23 @@ gfx1103 is not supported upstream, so Cycles is CPU-only here.
 - The add-on's own defaults are the configuration: auto-start, `localhost:9876`. Nothing
   sets them at runtime.
 
+## partkit and the kit layout
+
+`config/blender/partkit.py`, at `/opt/partkit/modules/` in the image (`build-prefs.py`
+registers `/opt/partkit` as a script directory, so it is importable from
+`execute_blender_code`). It exists so agents don't re-derive the per-part export each
+time:
+
+- **One collection per part, plus a root empty of the same name.** Placing the roots in
+  the scene is layout only; `export()` moves the root to the world origin for the export
+  and restores it, so an assembly or lineup never leaks into a game file.
+- **`use_active_scene=True` on the glTF export is load-bearing.** Without it the exporter
+  walks every scene, and objects left selected in another scene went into the part's
+  file (caught by `test/check.py`).
+- The workflow it supports (kit directory, `.blend` as source of truth, showing models in
+  the live window) is written in `code-docker/blender-modeler.md`. The MCP notice points
+  there, since the template only reaches agents a person copied it to.
+
 ## Process supervision
 
 The same split as code-docker-chrome:
@@ -181,6 +198,7 @@ It then checks:
   code-docker side;
 - `render_thumbnail_to_path`'s returned path;
 - a window screenshot, and that no render opened a window over the scene;
+- partkit exporting a part placed away from the origin at the origin;
 - a middle-drag sent over RFB (`test/rfb-drag.py`) rotating the view;
 - every network boundary;
 - the empty-token startup guard.

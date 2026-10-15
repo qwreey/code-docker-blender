@@ -32,6 +32,13 @@ prefs.inputs.use_mouse_continuous = False
 # tools write are unaffected (measured), and a person sees the last render with F11.
 prefs.view.render_display_type = "NONE"
 
+# partkit (config/blender/partkit.py, copied to /opt/partkit/modules/ by a later layer):
+# a script directory's modules/ is on sys.path in every session, so `import partkit`
+# works from execute_blender_code.
+d = prefs.filepaths.script_directories.new()
+d.name = "partkit"
+d.directory = "/opt/partkit"
+
 # Fail the build rather than ship an image whose MCP add-on is missing or renamed.
 addon = prefs.addons.get("bl_ext.user_default.mcp")
 assert addon is not None, "MCP add-on is not enabled"

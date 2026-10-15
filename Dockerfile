@@ -65,6 +65,11 @@ RUN cd /opt/blender_mcp/addon \
     && python -m venv /opt/blmcp \
     && /opt/blmcp/bin/pip install --no-cache-dir "mcp==${MCP_SDK_VERSION}" /opt/blender_mcp/mcp
 
+# partkit: helpers for multi-part models, imported from execute_blender_code. Its own
+# layer, after the add-on's: build-prefs.py already put /opt/partkit on Blender's script
+# path, so editing it rebuilds only this.
+COPY config/blender/partkit.py /opt/partkit/modules/partkit.py
+
 # Per-program rotated log dirs, matching the stdout_logfile paths in supervisord.d/.
 RUN mkdir -p /var/log/labwc /var/log/wayvnc /var/log/blender /var/log/mcp-server \
       /var/log/mcp-gate /var/log/critical-watchdog
