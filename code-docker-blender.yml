@@ -1,0 +1,116 @@
+# The only compose file in this repo, on purpose - same reasoning as code-docker-chrome:
+# this image exists to attach Blender to code-docker, so there is no standalone mode to
+# keep in sync.
+#
+# It is pulled in through code-docker's extra-include.yml -> EXTRA_INCLUDE hook, which
+# `ootb.sh` writes from ootb-manifest.env. Running this file on its own is not
+# supported: code-docker-internal and code-docker-router are defined only in
+# code-docker's own docker-compose.yml.
+
+services:
+  code-docker-blender:
+    build:
+      # `.`: Compose resolves a relative path in an included fragment against the
+      # fragment's own directory, so this is right wherever ootb clones the repo.
+      context: .
+    container_name: "${PREFIX:-}code-docker-blender"
+    restart: unless-stopped
+    # EEVEE, Workbench and the viewport render on the GPU. Without it, Mesa falls back to
+    # llvmpipe: everything still works, but an EEVEE frame takes ~13s instead of ~2s
+    # (measured on a Radeon 780M). code-docker-chrome leaves /dev/dri out because a
+    # browser doesn't need it; here it is the point. Only Mesa drivers are in the image,
+    # so NVIDIA's proprietary stack is not covered.
+    devices:
+      - /dev/dri:/dev/dri
+    # No capabilities: everything runs as root inside, and the render node is reachable
+    # as its owner without CAP_DAC_OVERRIDE. Routing would need NET_ADMIN, but this
+    # container gets no route at all (below).
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # No netinit.provider label, on purpose: code-docker's netinit-docker never plants a
+    # default route here, so the container has no internet. Blender needs none to build,
+    # render and export, and leaving it out means nothing fetched from outside (an add-on,
+    # an asset, a .blend with embedded scripts) runs next to a token-gated Python
+    # endpoint. Adding egress later means this label plus code-docker-chrome's
+    # NETINIT_WAIT/dns-local pieces.
+    environment:
+      # Bearer token for the MCP endpoint. mcp-gate refuses to start without one rather
+      # than run open. ootb generates it - see ootb-manifest.env.
+      BLENDER_MCP_TOKEN: "${BLENDER_MCP_TOKEN:?BLENDER_MCP_TOKEN is required - run ootb.sh/migrate.sh, or set it in code-docker's .env}"
+      # What the MCP gate binds: this container's address on code-docker-internal,
+      # network-qualified so it can't resolve to the VNC-side address.
+      MCP_BIND_NAME: "${PREFIX:-}code-docker-blender.${PREFIX:-}code-docker-internal"
+      VNC_BIND_ALIAS: blender-vnc
+      SCREEN_SIZE: "${BLENDER_SCREEN_SIZE:-1920x1080}"
+      # Prefixed, unlike code-docker-chrome's VNC_PASSWORD: both read code-docker's one
+      # .env, and one shared name would set both providers' passwords at once.
+      VNC_PASSWORD: "${BLENDER_VNC_PASSWORD:-}"
+      BLENDER_WORK_DIR: "${BLENDER_WORK_DIR:-/code/blender}"
+    networks:
+      # Directly on code-docker-internal, unlike Chrome and Roblox Studio, which sit on
+      # their own networks behind a front container. Those run content from the internet
+      # (any site's JavaScript, a game's HttpService), and on this network it would reach
+      # code-docker's nginx and dind's unauthenticated API. Blender runs only what the
+      # agent sends it and what the person at the VNC session does - both of whom already
+      # reach all of that from code-docker - and has no internet to fetch anything else.
+      # The one listener here is the token-gated MCP port (mcp-gate-service.sh).
+      code-docker-internal:
+        aliases:
+          - blender
+      # VNC is a subtraction: only router joins, and a person gets there through router's
+      # VNC tab. code-docker doesn't join; agents see the screen through the MCP's own
+      # screenshot tool instead.
+      blender-vnc:
+        aliases:
+          - blender-vnc
+    volumes:
+      # The shared work directory. Mounted at the same path here and in code-docker
+      # (below), so a path the MCP hands back is a path the agent can open.
+      - "blender-work:${BLENDER_WORK_DIR:-/code/blender}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Field merges into code-docker's own services - include merging is by service name.
+  code-docker:
+    environment:
+      # code-docker has no idea this project exists, so without this merge the agent
+      # container has no token to put in `claude mcp add --header ...`.
+      BLENDER_MCP_TOKEN: "${BLENDER_MCP_TOKEN:-}"
+    volumes:
+      # Inside /code (the HOME_VOLUME bind) so it sits next to the agent's projects.
+      # Docker mounts the deeper path over the bind; dind, which mounts the same
+      # HOME_VOLUME, sees an empty directory here instead.
+      - "blender-work:${BLENDER_WORK_DIR:-/code/blender}"
+      # The subagent template (blender-modeler.md), read-only. This repo is checked out on
+      # the host, outside every path code-docker mounts, so the overlay hands it over;
+      # README says to copy it into ~/.claude/agents/ rather than linking it, so the
+      # person's copy is theirs to edit.
+      - "./code-docker:/run/code-docker-blender:ro"
+
+  # router relays VNC to a person; the VNC tab entry (rfb, blender-vnc:5900) is added at
+  # runtime from router-manager, not here. No gateway role: this container has no route.
+  code-docker-router:
+    networks:
+      blender-vnc: {}
+
+networks:
+  blender-vnc:
+    internal: true
+    # ${PREFIX} so two code-docker instances that both attach this provider don't share
+    # one network, mixing one deployment's router with the other's Blender.
+    name: "${PREFIX:-}code-docker-blender-vnc"
+    labels:
+      # netinit.provider opts the network in at all (matching is fail-closed);
+      # exempt-forward lets router's relayed VNC traffic through Docker 29.x's
+      # DOCKER-USER hardening for internal networks. No netinit.gateway: a relay path to
+      # a person is not an egress path.
+      netinit.provider: "${PREFIX:-}code-docker-netinit-docker"
+      netinit.exempt-forward: "true"
+
+volumes:
+  blender-work:
+    name: "${PREFIX:-}code-docker-blender-work"

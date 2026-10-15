@@ -1,0 +1,17 @@
+# Bearer-token gate in front of blmcp's HTTP transport (127.0.0.1:8000, no auth of its
+# own). Same shape as roblox-studio-docker's config/mcp/Caddyfile.
+{
+	auto_https off
+	admin off
+}
+
+:{$MCP_GATE_PORT} {
+	bind {$MCP_BIND_ADDR}
+	# `route` runs these in the order written. Caddy's default directive order would put
+	# reverse_proxy ahead of respond and skip the token check.
+	route {
+		@unauthorized not header Authorization "Bearer {$BLENDER_MCP_TOKEN}"
+		respond @unauthorized "unauthorized" 401
+		reverse_proxy 127.0.0.1:8000
+	}
+}

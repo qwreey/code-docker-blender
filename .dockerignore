@@ -1,0 +1,4 @@
+# Only the Dockerfile's COPY sources matter; keep the build context small.
+.git
+test/
+**/__pycache__

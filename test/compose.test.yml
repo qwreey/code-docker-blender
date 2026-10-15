@@ -1,0 +1,28 @@
+# Stand-in for code-docker's stack, just enough for code-docker-blender.yml to attach to:
+# the code-docker-internal network, a `code-docker` service (an MCP client here) and a
+# `code-docker-router` (a busybox that can dial VNC). Run through ./run.sh, which sets a
+# PREFIX so nothing collides with a real stack on the same host.
+include:
+  - path: ../code-docker-blender.yml
+
+services:
+  code-docker:
+    build: ./client
+    container_name: "${PREFIX:-}code-docker"
+    command: ["sleep", "infinity"]
+    volumes:
+      - ./:/test:ro
+    networks:
+      code-docker-internal: {}
+
+  code-docker-router:
+    image: busybox:1.37
+    container_name: "${PREFIX:-}code-docker-router"
+    command: ["sleep", "infinity"]
+    networks:
+      code-docker-internal: {}
+
+networks:
+  code-docker-internal:
+    internal: true
+    name: "${PREFIX:-}code-docker-internal"

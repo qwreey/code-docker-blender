@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<!-- labwc config for the headless desktop: a floating WM with labwc's stock bindings,
+     Blender filling the screen, and the right-click menu in menu.xml.
+
+     KEEP THE <default /> ELEMENTS. labwc loads its built-in keybind and mousebind tables
+     only when this file declares none of its own in that category: one <mousebind>
+     replaces the whole default mouse table instead of adding to it. That loses titlebar
+     dragging, the titlebar buttons, border resizing and double-click maximize; one
+     <keybind> loses A-F4 (close), A-Space (window menu), A-Tab and W-arrows (snap).
+     <default /> loads the built-ins explicitly, so everything below is additive. -->
+<labwc_config>
+  <theme>
+    <cornerRadius>0</cornerRadius>
+  </theme>
+  <keyboard>
+    <default />
+    <keybind key="W-q">
+      <action name="Close"/>
+    </keybind>
+    <keybind key="W-f">
+      <action name="ToggleMaximize"/>
+    </keybind>
+  </keyboard>
+  <mouse>
+    <default />
+  </mouse>
+  <!-- Blender is the whole desktop, so it opens maximized with no titlebar of its own
+       (it draws its own top bar). Matched by glob because the app_id differs between
+       Blender's Wayland and X11 paths. Its preferences/file dialogs are separate
+       windows and keep a titlebar. -->
+  <windowRules>
+    <windowRule identifier="*blender*" serverDecoration="no">
+      <action name="Maximize"/>
+    </windowRule>
+  </windowRules>
+</labwc_config>

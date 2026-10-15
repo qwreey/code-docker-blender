@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The desktop's right-click menu. Defined here because labwc's built-in one carries
+     "Exit", which stops labwc - and critical-watchdog then shuts the whole container
+     down, taking the agent's Blender session with it. -->
+<openbox_menu>
+  <menu id="root-menu" label="Menu">
+    <!-- For when Blender was quit from its own menu and supervisord's restart has not
+         happened yet, or a window got lost. Starting an already running program is a
+         no-op error, not a second Blender. -->
+    <item label="Start Blender">
+      <action name="Execute" command="supervisorctl -s unix:///run/supervisor.sock start blender"/>
+    </item>
+  </menu>
+</openbox_menu>
