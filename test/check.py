@@ -45,6 +45,24 @@ import gpu
 print("renderer:", gpu.platform.renderer_get())
 """
 
+WINDOWS = "import bpy; print('windows:', len(bpy.context.window_manager.windows))"
+
+# For run.sh's VNC input check: the main window's 3D view orientation.
+VIEW = """
+import bpy
+a = next(a for a in bpy.context.window_manager.windows[0].screen.areas if a.type == 'VIEW_3D')
+print('view:', tuple(round(v, 4) for v in a.spaces.active.region_3d.view_rotation))
+"""
+
+
+async def view() -> None:
+    auth = {"Authorization": f"Bearer {TOKEN}"}
+    async with streamablehttp_client(URL, headers=auth) as (r, w, _):
+        async with ClientSession(r, w) as s:
+            await s.initialize()
+            res = await s.call_tool("execute_blender_code", {"code": VIEW})
+            print(res.content[0].text.split("view: ")[1].split("\\n")[0])
+
 
 async def main() -> None:
     # An empty server-side token is refused at startup instead (run.sh checks that), so
@@ -84,6 +102,11 @@ async def main() -> None:
             res = await s.call_tool("render_thumbnail_to_path", {"output_path": "thumb.png"})
             path = res.content[0].text.split('"filepath": "')[1].split('"')[0] if res.content and "filepath" in res.content[0].text else ""
             check(path.startswith(f"{WORK}/.tmp/") and os.path.exists(path), f"render_thumbnail_to_path -> {path}")
+            # The render tools render with INVOKE_DEFAULT; a Render Result window would cover
+            # the person's scene (build-prefs.py sets render_display_type to prevent it).
+            res = await s.call_tool("execute_blender_code", {"code": WINDOWS})
+            text = res.content[0].text if res.content else ""
+            check("windows: 1\\n" in text, "a render opens no window over the scene")
 
             res = await s.call_tool("get_screenshot_of_window_as_image", {})
             imgs = [c for c in res.content if c.type == "image"]
@@ -93,5 +116,8 @@ async def main() -> None:
                     fh.write(base64.b64decode(imgs[0].data))
 
 
+if sys.argv[1:] == ["view"]:
+    asyncio.run(view())
+    sys.exit(0)
 asyncio.run(main())
 sys.exit(1 if failed else 0)

@@ -25,6 +25,20 @@ done
 echo "== MCP over the gate (check.py)"
 dc exec -T -e BLENDER_MCP_TOKEN code-docker python /test/check.py || fail=1
 
+echo "== VNC input"
+# A person navigating the viewport: a middle-drag over RFB has to rotate the view.
+# check.py's own renders must not have covered the scene with a window, or the drag
+# lands on that instead.
+view_rotates_over_vnc() {
+  local before after
+  before="$(dc exec -T -e BLENDER_MCP_TOKEN code-docker python /test/check.py view)"
+  dc exec -T code-docker-blender python3 - blender-vnc 5900 <rfb-drag.py
+  after="$(dc exec -T -e BLENDER_MCP_TOKEN code-docker python /test/check.py view)"
+  echo "       ${before} -> ${after}"
+  [[ -n "${before}" && "${before}" != "${after}" ]]
+}
+check view_rotates_over_vnc
+
 echo "== network boundaries"
 # reaches <service> <host> <port>: 0 if a TCP connection opens. Both stub images have
 # a different toolbox (busybox nc vs python), so try each.

@@ -124,6 +124,10 @@ gfx1103 is not supported upstream, so Cycles is CPU-only here.
   also makes Blender try the Online Essentials asset library and extensions.blender.org
   sync, which only fail here. `config/blender/build-prefs.py` turns both off and also
   disables the splash screen, which otherwise covers every screenshot.
+  - It also turns off continuous grab, without which no viewport navigation works over
+    VNC, and sets the render display to "keep user interface", without which every MCP
+    render covers the scene with a maximized Render Result window. The reasons are in the
+    file; `test/run.sh` checks both.
   - Those preferences are saved into the image's `userpref.blend`, so GUI changes a person
     makes do not survive a recreate.
   - `build-prefs.py` also asserts the add-on is enabled with its default `localhost`
@@ -176,7 +180,8 @@ It then checks:
 - a model built, rendered with EEVEE on the GPU and exported, read back from the
   code-docker side;
 - `render_thumbnail_to_path`'s returned path;
-- a window screenshot;
+- a window screenshot, and that no render opened a window over the scene;
+- a middle-drag sent over RFB (`test/rfb-drag.py`) rotating the view;
 - every network boundary;
 - the empty-token startup guard.
 
